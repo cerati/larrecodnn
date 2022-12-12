@@ -32,7 +32,7 @@
 #include "messagefacility/MessageLogger/MessageLogger.h"
 
 // LArSoft libraries
-#include "larcore/Geometry/Geometry.h"
+#include "larcore/Geometry/WireReadout.h"
 #include "larcorealg/Geometry/PlaneGeo.h"
 #include "larcoreobj/SimpleTypesAndConstants/RawTypes.h" // raw::ChannelID_t
 #include "lardata/DetectorInfoServices/DetectorClocksService.h"
@@ -121,7 +121,8 @@ private:
   bool fSaveSignal;
   int fMaxNoiseChannelsPerEvent;
   std::string fCollectionPlaneLabel;
-  art::ServiceHandle<geo::Geometry> fgeom;
+  geo::WireReadoutGeom const* fWireReadoutGeom{
+    &art::ServiceHandle<geo::WireReadout const>()->Get()};
   art::ServiceHandle<cheat::ParticleInventoryService> PIS;
 
   CLHEP::RandFlat fRandFlat;
@@ -355,9 +356,6 @@ void nnet::RawWaveformDump::analyze(art::Event const& evt)
   if (!simChannelHandle->size()) return;
 
   // ... Create a map of track IDs to generator labels
-  //Get a list of generator names.
-  //std::vector<art::Handle<std::vector<simb::MCTruth>>> mcHandles;
-  //evt.getManyByType(mcHandles);
   auto mcHandles = evt.getMany<std::vector<simb::MCTruth>>();
   std::vector<std::pair<int, std::string>> track_id_to_label;
 
@@ -387,7 +385,7 @@ void nnet::RawWaveformDump::analyze(art::Event const& evt)
       // .. get simChannel channel number
       const raw::ChannelID_t ch1 = channel.Channel();
       if (ch1 == raw::InvalidChannelID) continue;
-      if (geo::PlaneGeo::ViewName(fgeom->View(ch1)) != fPlaneToDump[0]) continue;
+      if (geo::PlaneGeo::ViewName(fWireReadoutGeom->View(ch1)) != fPlaneToDump[0]) continue;
 
       bool selectThisChannel = false;
 
@@ -409,7 +407,6 @@ void nnet::RawWaveformDump::analyze(art::Event const& evt)
           if (!energyDeposit.trackID) continue;
           int trkid = energyDeposit.trackID;
           simb::MCParticle particle = PIS->TrackIdToMotherParticle(trkid);
-          //std::cout << energyDeposit.trackID << " " << trkid << " " << particle.TrackId() << std::endl;
 
           // .. ignore this energy deposition if incident particle energy below some threshold
           if (particle.E() < fMinParticleEnergyGeV) continue;
@@ -519,7 +516,8 @@ void nnet::RawWaveformDump::analyze(art::Event const& evt)
 
             c2numpy_uint32(&npywriter, evt.id().event());
             c2numpy_uint32(&npywriter, chnum);
-            c2numpy_string(&npywriter, geo::PlaneGeo::ViewName(fgeom->View(chnum)).c_str());
+            c2numpy_string(&npywriter,
+                           geo::PlaneGeo::ViewName(fWireReadoutGeom->View(chnum)).c_str());
             c2numpy_uint16(&npywriter, itchn->second.size()); // size of Trk2WSInfoMap, or #peaks
             unsigned int icnt = 0;
             for (auto const& it : itchn->second) {
@@ -604,7 +602,8 @@ void nnet::RawWaveformDump::analyze(art::Event const& evt)
 
               c2numpy_uint32(&npywriter, evt.id().event());
               c2numpy_uint32(&npywriter, chnum);
-              c2numpy_string(&npywriter, geo::PlaneGeo::ViewName(fgeom->View(chnum)).c_str());
+              c2numpy_string(&npywriter,
+                             geo::PlaneGeo::ViewName(fWireReadoutGeom->View(chnum)).c_str());
 
               // .. second loop to select only signals that are within the window
 
@@ -704,29 +703,32 @@ void nnet::RawWaveformDump::analyze(art::Event const& evt)
         if (signalMap[digitVec->Channel()]) continue;
 
         std::vector<short> rawadc(dataSize); // vector to hold uncompressed adc values later
-        if (geo::PlaneGeo::ViewName(fgeom->View(digitVec->Channel())) != fPlaneToDump[0]) continue;
+        if (geo::PlaneGeo::ViewName(fWireReadoutGeom->View(digitVec->Channel())) != fPlaneToDump[0])
+          continue;
         raw::Uncompress(digitVec->ADCs(), rawadc, digitVec->GetPedestal(), digitVec->Compression());
         for (size_t j = 0; j < rawadc.size(); ++j) {
           adcvec[j] = rawadc[j] - digitVec->GetPedestal();
         }
         c2numpy_uint32(&npywriter, evt.id().event());
         c2numpy_uint32(&npywriter, digitVec->Channel());
-        c2numpy_string(&npywriter,
-                       geo::PlaneGeo::ViewName(fgeom->View(digitVec->Channel())).c_str());
+        c2numpy_string(
+          &npywriter, geo::PlaneGeo::ViewName(fWireReadoutGeom->View(digitVec->Channel())).c_str());
       }
       else if (wirelist.size()) {
         size_t ranIdx = randigitmap[rdIter];
         art::Ptr<recob::Wire> wire = wirelist[ranIdx];
         if (signalMap[wire->Channel()]) continue;
         if (channelStatus.IsBad(wire->Channel())) continue;
-        if (geo::PlaneGeo::ViewName(fgeom->View(wire->Channel())) != fPlaneToDump[0]) continue;
+        if (geo::PlaneGeo::ViewName(fWireReadoutGeom->View(wire->Channel())) != fPlaneToDump[0])
+          continue;
         const auto& signal = wire->Signal();
         for (size_t j = 0; j < adcvec.size(); ++j) {
           adcvec[j] = signal[j];
         }
         c2numpy_uint32(&npywriter, evt.id().event());
         c2numpy_uint32(&npywriter, wire->Channel());
-        c2numpy_string(&npywriter, geo::PlaneGeo::ViewName(fgeom->View(wire->Channel())).c_str());
+        c2numpy_string(&npywriter,
+                       geo::PlaneGeo::ViewName(fWireReadoutGeom->View(wire->Channel())).c_str());
       }
 
       c2numpy_uint16(&npywriter, 0); //number of peaks

@@ -9,6 +9,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "larcore/Geometry/Geometry.h"
+#include "larcore/Geometry/WireReadout.h"
 #include "larcorealg/Geometry/GeometryCore.h"
 #include "lardata/DetectorInfoServices/DetectorClocksService.h"
 #include "lardata/DetectorInfoServices/DetectorPropertiesService.h"
@@ -145,8 +146,6 @@ namespace nnet {
     int nEm_sel, nTrk_sel, nMichel_sel, nNone_sel;
     int nStopTrk_sel, nCleanTrk_sel;
 
-    geo::GeometryCore const* fGeometry;
-
     c2numpy_writer npywriter;
 
     CLHEP::HepRandomEngine& fEngine; ///< art-managed random-number engine
@@ -179,15 +178,16 @@ namespace nnet {
     , fCleanTrk(config().CleanTrk())
     , fEngine(art::ServiceHandle<rndm::NuRandomService>()->registerAndSeedEngine(createEngine(0)))
   {
-    fGeometry = &*(art::ServiceHandle<geo::Geometry const>());
+    art::ServiceHandle<geo::Geometry const> geom;
+    auto const& wireReadoutGeom = art::ServiceHandle<geo::WireReadout>()->Get();
 
     if (fSelectedTPC.empty()) {
-      for (size_t tpc = 0; tpc < fGeometry->NTPC(); ++tpc)
+      for (size_t tpc = 0; tpc < geom->NTPC(); ++tpc)
         fSelectedTPC.push_back(tpc);
     }
 
     if (fSelectedPlane.empty()) {
-      for (size_t p = 0; p < fGeometry->MaxPlanes(); ++p)
+      for (size_t p = 0; p < wireReadoutGeom.MaxPlanes(); ++p)
         fSelectedPlane.push_back(p);
     }
   }

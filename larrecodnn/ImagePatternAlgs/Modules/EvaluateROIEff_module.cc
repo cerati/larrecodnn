@@ -14,7 +14,7 @@
 ////////////////////////////////////////////////////////////////////////
 
 #include "larcore/CoreUtils/ServiceUtil.h"
-#include "larcore/Geometry/Geometry.h"
+#include "larcore/Geometry/WireReadout.h"
 #include "larcoreobj/SimpleTypesAndConstants/RawTypes.h"
 #include "lardata/DetectorInfoServices/DetectorClocksService.h"
 #include "lardata/DetectorInfoServices/DetectorPropertiesService.h"
@@ -98,8 +98,7 @@ nnet::EvaluateROIEff::EvaluateROIEff(fhicl::ParameterSet const& p)
 
 void nnet::EvaluateROIEff::analyze(art::Event const& e)
 {
-
-  auto const* geo = lar::providerFrom<geo::Geometry>();
+  auto const& wireReadoutGeom = art::ServiceHandle<geo::WireReadout const>()->Get();
   auto const clockData = art::ServiceHandle<detinfo::DetectorClocksService>()->DataFor(e);
   auto const detProp =
     art::ServiceHandle<detinfo::DetectorPropertiesService>()->DataFor(e, clockData);
@@ -115,14 +114,14 @@ void nnet::EvaluateROIEff::analyze(art::Event const& e)
 
   // efficiency: according to each simulated energy deposit
   // ... Loop over simChannels
-  for (auto const& channel : (*simChannelHandle)) {
+  for (auto const& channel : *simChannelHandle) {
 
     // .. get simChannel channel number
     const raw::ChannelID_t ch1 = channel.Channel();
     if (chStatus.IsBad(ch1)) continue;
 
     if (ch1 % 1000 == 0) mf::LogInfo("EvaluateROIEFF") << ch1;
-    int view = geo->View(ch1);
+    int view = wireReadoutGeom.View(ch1);
     auto const& timeSlices = channel.TDCIDEMap();
 
     // time slice from simChannel is for individual tick
@@ -219,7 +218,6 @@ void nnet::EvaluateROIEff::analyze(art::Event const& e)
         } // loop over range
 
         if (IsSignalOutside) {
-          //cout << "This signal is not in any ROI: " << signal_starttick[s] << " -> " << signal_endtick[s] << endl;
           h_energy[view]->Fill(signal_energy_max[s]);
           h1_tickdiff_max[view]->Fill(-99);
           continue;
@@ -227,7 +225,6 @@ void nnet::EvaluateROIEff::analyze(art::Event const& e)
 
         // signal is in one ROI
         for (const auto& range : signalROI.get_ranges()) {
-          //const auto& waveform = range.data();
           raw::TDCtick_t roiFirstBinTick = range.begin_index();
           raw::TDCtick_t roiLastBinTick = range.end_index();
 

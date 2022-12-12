@@ -25,7 +25,7 @@
 //////////////////////////////////////////////
 
 // LArSoft libraries
-#include "larcore/Geometry/Geometry.h"
+#include "larcore/Geometry/WireReadout.h"
 #include "larcorealg/Geometry/PlaneGeo.h"
 #include "larcoreobj/SimpleTypesAndConstants/RawTypes.h" // raw::ChannelID_t
 #include "lardata/DetectorInfoServices/DetectorClocksService.h"
@@ -136,7 +136,8 @@ private:
   int fMaxSignalChannelsPerEvent;
   int fMaxNoiseChannelsPerEvent;
   std::string fCollectionPlaneLabel;
-  art::ServiceHandle<geo::Geometry> fgeom;
+  geo::WireReadoutGeom const* fWireReadoutGeom{
+    &art::ServiceHandle<geo::WireReadout const>()->Get()};
   art::ServiceHandle<cheat::ParticleInventoryService> PIS;
 
   CLHEP::RandFlat fRandFlat;
@@ -424,7 +425,7 @@ void nnet::RawWaveformClnSigDump::analyze(art::Event const& evt)
       // .. get simChannel channel number
       const raw::ChannelID_t ch1 = channel.Channel();
       if (ch1 == raw::InvalidChannelID) continue;
-      if (geo::PlaneGeo::ViewName(fgeom->View(ch1)) != fPlaneToDump[0]) continue;
+      if (geo::PlaneGeo::ViewName(fWireReadoutGeom->View(ch1)) != fPlaneToDump[0]) continue;
 
       bool selectThisChannel = false;
 
@@ -592,7 +593,8 @@ void nnet::RawWaveformClnSigDump::analyze(art::Event const& evt)
 
             c2numpy_uint32(&npywriter, evt.id().event());
             c2numpy_uint32(&npywriter, chnum);
-            c2numpy_string(&npywriter, geo::PlaneGeo::ViewName(fgeom->View(chnum)).c_str());
+            c2numpy_string(&npywriter,
+                           geo::PlaneGeo::ViewName(fWireReadoutGeom->View(chnum)).c_str());
             c2numpy_uint16(&npywriter, itchn->second.size()); // size of Trk2WSInfoMap, or #peaks
             unsigned int icnt = 0;
             for (auto& it : itchn->second) {
@@ -685,7 +687,8 @@ void nnet::RawWaveformClnSigDump::analyze(art::Event const& evt)
 
               c2numpy_uint32(&npywriter, evt.id().event());
               c2numpy_uint32(&npywriter, chnum);
-              c2numpy_string(&npywriter, geo::PlaneGeo::ViewName(fgeom->View(chnum)).c_str());
+              c2numpy_string(&npywriter,
+                             geo::PlaneGeo::ViewName(fWireReadoutGeom->View(chnum)).c_str());
 
               // .. second loop to select only signals that are within the window
 
@@ -794,14 +797,16 @@ void nnet::RawWaveformClnSigDump::analyze(art::Event const& evt)
       if (signalMap[digitVec->Channel()]) continue;
 
       std::vector<short> rawadc(dataSize); // vector to hold uncompressed adc values later
-      if (geo::PlaneGeo::ViewName(fgeom->View(digitVec->Channel())) != fPlaneToDump[0]) continue;
+      if (geo::PlaneGeo::ViewName(fWireReadoutGeom->View(digitVec->Channel())) != fPlaneToDump[0])
+        continue;
       raw::Uncompress(digitVec->ADCs(), rawadc, digitVec->GetPedestal(), digitVec->Compression());
       for (size_t j = 0; j < rawadc.size(); ++j) {
         adcvec[j] = rawadc[j] - digitVec->GetPedestal();
       }
       c2numpy_uint32(&npywriter, evt.id().event());
       c2numpy_uint32(&npywriter, digitVec->Channel());
-      c2numpy_string(&npywriter, geo::PlaneGeo::ViewName(fgeom->View(digitVec->Channel())).c_str());
+      c2numpy_string(&npywriter,
+                     geo::PlaneGeo::ViewName(fWireReadoutGeom->View(digitVec->Channel())).c_str());
 
       c2numpy_uint16(&npywriter, 0); //number of peaks
       for (unsigned int i = 0; i < 5; ++i) {
