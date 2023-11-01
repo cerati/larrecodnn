@@ -23,12 +23,10 @@
 
 #include "art/Framework/Services/Registry/ServiceHandle.h"
 #include "larcore/Geometry/Geometry.h"
+#include "larcore/Geometry/WireReadout.h"
 #include "larcorealg/Geometry/GeometryCore.h"
 #include "lardata/DetectorInfoServices/DetectorPropertiesService.h"
 
-// namespace recob{class Hit, class Wire};
-// namespace sim{class SimChannel};
-//
 namespace lcvn {
   typedef std::vector<std::map<double, double>> Waveform;
 
@@ -50,10 +48,7 @@ namespace lcvn {
 
   class WireHelper {
   public:
-    WireHelper(recob::Wire wire, double thresh = 0.) : fWire(wire), fThreshold(thresh)
-    {
-      fGeometry = &*(art::ServiceHandle<geo::Geometry>());
-    }
+    WireHelper(recob::Wire wire, double thresh = 0.) : fWire(wire), fThreshold(thresh) {}
 
     virtual Waveform GetWaveform();
     virtual geo::WireID GetID();
@@ -61,16 +56,15 @@ namespace lcvn {
   protected:
     recob::Wire fWire;
     double fThreshold;
-    geo::GeometryCore const* fGeometry;
+    geo::WireReadoutGeom const* fWireReadoutGeom{
+      &art::ServiceHandle<geo::WireReadout const>()->Get()};
   };
 
   class SimChannelHelper {
   public:
     SimChannelHelper(sim::SimChannel simchan, double thresh = 0.)
       : fSimchan(simchan), fThreshold(thresh)
-    {
-      fGeometry = &*(art::ServiceHandle<geo::Geometry>());
-    }
+    {}
 
     virtual Waveform GetWaveform();
     virtual geo::WireID GetID();
@@ -78,7 +72,8 @@ namespace lcvn {
   protected:
     sim::SimChannel fSimchan;
     double fThreshold;
-    geo::GeometryCore const* fGeometry;
+    geo::WireReadoutGeom const* fWireReadoutGeom{
+      &art::ServiceHandle<geo::WireReadout const>()->Get()};
   };
 
   /// Producer algorithm for PixelMap, input to CVN neural net
@@ -86,7 +81,7 @@ namespace lcvn {
   class PixelMapProducer {
   public:
     PixelMapProducer(unsigned int nWire, unsigned int nTdc, double tRes, double threshold = 0.);
-    PixelMapProducer();
+    PixelMapProducer() = default;
 
     // overload constructor for inputs from fcl
     PixelMapProducer(const fhicl::ParameterSet& pset);
@@ -121,7 +116,7 @@ namespace lcvn {
                                             const std::vector<const T*>& cluster,
                                             const Boundary& bound);
 
-  protected:
+  private:
     unsigned int fNWire;   ///< Number of wires, length for pixel maps
     unsigned int fNTdc;    ///< Number of tdcs, width of pixel map
     double fTRes;          ///< Timing resolution for pixel map
@@ -129,9 +124,11 @@ namespace lcvn {
     double fThreshold;     ///< Charge threshold to consider for hits/waveforms etc
     bool
       fMultipleDrifts; ///< True if making the pixel map requires handling for multiple drift regions
-
-    geo::GeometryCore const* fGeometry;
   };
+
+  extern template class PixelMapProducer<recob::Hit, lcvn::HitHelper>;
+  extern template class PixelMapProducer<recob::Wire, lcvn::WireHelper>;
+  extern template class PixelMapProducer<sim::SimChannel, lcvn::SimChannelHelper>;
 
   typedef PixelMapProducer<recob::Hit, lcvn::HitHelper> PixelMapHitProducer;
   typedef PixelMapProducer<recob::Wire, lcvn::WireHelper> PixelMapWireProducer;

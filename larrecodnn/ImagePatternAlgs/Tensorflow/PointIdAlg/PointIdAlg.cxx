@@ -8,8 +8,8 @@
 
 #include "larrecodnn/ImagePatternAlgs/Tensorflow/PointIdAlg/PointIdAlg.h"
 
-#include "larcore/CoreUtils/ServiceUtil.h"                // lar::providerFrom<>()
-#include "larcorealg/Geometry/Exceptions.h"               // geo::InvalidWireIDError
+#include "larcorealg/Geometry/Exceptions.h" // geo::InvalidWireIDError
+#include "larcorealg/Geometry/WireReadoutGeom.h"
 #include "larcoreobj/SimpleTypesAndConstants/RawTypes.h"  // raw::InvalidChannelID
 #include "larcoreobj/SimpleTypesAndConstants/geo_types.h" // geo::TPCID
 #include "lardata/DetectorInfoServices/DetectorClocksService.h"
@@ -449,21 +449,21 @@ nnet::TrainingDataAlg::WireDrift nnet::TrainingDataAlg::getProjection(
     geo::Point_t vtx{tvec.X(), tvec.Y(), tvec.Z()};
     if (fGeometry->FindTPCAtPosition(vtx).isValid) {
       geo::TPCID tpcid = fGeometry->FindTPCAtPosition(vtx);
-      unsigned int tpc = tpcid.TPC, cryo = tpcid.Cryostat;
 
       // correct for the time offset
       float dx = tvec.T() * 1.e-3 * detProp.DriftVelocity();
-      int driftDir = fGeometry->TPC(tpcid).DetectDriftDirection();
-      if (driftDir == 1) { dx *= -1; }
-      else if (driftDir != -1) {
+      auto const [axis, sign] = fGeometry->TPC(tpcid).DriftAxisWithSign();
+      if (axis != geo::Coordinate::X) {
         throw cet::exception("nnet::TrainingDataAlg") << "drift direction is not X." << std::endl;
       }
+      if (sign == geo::DriftSign::Negative) { dx *= -1; }
       vtx.SetX(tvec.X() + dx);
 
-      wd.Wire = fGeometry->NearestWireID(vtx, geo::PlaneID{tpcid, plane}).Wire;
-      wd.Drift = detProp.ConvertXToTicks(vtx.X(), plane, tpc, cryo);
-      wd.TPC = tpc;
-      wd.Cryo = cryo;
+      geo::PlaneID const planeID{tpcid, plane};
+      wd.Wire = fWireReadoutGeom->Plane(planeID).NearestWireID(vtx).Wire;
+      wd.Drift = detProp.ConvertXToTicks(vtx.X(), planeID);
+      wd.TPC = planeID.TPC;
+      wd.Cryo = planeID.Cryostat;
     }
   }
   catch (const geo::InvalidWireError& e) {

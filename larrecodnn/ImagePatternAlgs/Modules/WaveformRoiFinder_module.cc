@@ -13,8 +13,7 @@
 // Based on the Analyzer module written by Mike Wang.
 ////////////////////////////////////////////////////////////////////////
 
-#include "larcore/CoreUtils/ServiceUtil.h"
-#include "larcore/Geometry/Geometry.h"
+#include "larcore/Geometry/WireReadout.h"
 #include "lardataobj/RawData/RawDigit.h"
 #include "lardataobj/RawData/raw.h"
 #include "lardataobj/RecoBase/Wire.h"
@@ -24,14 +23,11 @@
 #include "art/Framework/Core/ModuleMacros.h"
 #include "art/Framework/Principal/Event.h"
 #include "art/Framework/Principal/Handle.h"
-#include "art/Framework/Principal/Run.h"
-#include "art/Framework/Principal/SubRun.h"
 #include "art/Utilities/make_tool.h"
 #include "canvas/Persistency/Common/Ptr.h"
 #include "canvas/Utilities/InputTag.h"
 #include "cetlib_except/exception.h"
 #include "fhiclcpp/ParameterSet.h"
-#include "messagefacility/MessageLogger/MessageLogger.h"
 
 #include <memory>
 #include <utility> // std::move()
@@ -82,8 +78,8 @@ nnet::WaveformRoiFinder::WaveformRoiFinder(fhicl::ParameterSet const& p)
       << "Only one of RawProducerLabel and WireProducerLabel should be set";
   }
 
-  auto const* geo = lar::providerFrom<geo::Geometry>();
-  fNPlanes = geo->Nplanes();
+  auto const& wireReadoutGeom = art::ServiceHandle<geo::WireReadout const>()->Get();
+  fNPlanes = wireReadoutGeom.Nplanes();
 
   // Signal/Noise waveform recognition tool
   fWaveformRecogToolVec.reserve(fNPlanes);
@@ -109,7 +105,7 @@ void nnet::WaveformRoiFinder::produce(art::Event& e)
 
   std::unique_ptr<std::vector<recob::Wire>> outwires(new std::vector<recob::Wire>);
 
-  auto const* geo = lar::providerFrom<geo::Geometry>();
+  auto const& wireReadoutGeom = art::ServiceHandle<geo::WireReadout const>()->Get();
 
   //##############################
   //### Looping over the wires ###
@@ -133,7 +129,7 @@ void nnet::WaveformRoiFinder::produce(art::Event& e)
     else if (!rawlist.empty()) {
       const auto& digitVec = rawlist[ich];
 
-      view = geo->View(rawlist[ich]->Channel());
+      view = wireReadoutGeom.View(rawlist[ich]->Channel());
 
       std::vector<short> rawadc(fWaveformSize);
       raw::Uncompress(digitVec->ADCs(), rawadc, digitVec->GetPedestal(), digitVec->Compression());
@@ -178,11 +174,11 @@ void nnet::WaveformRoiFinder::produce(art::Event& e)
     }
     if (!sigs.empty()) { rois.add_range(roistart, std::move(sigs)); }
     if (!wirelist.empty() && hasROI) {
-      outwires->emplace_back(recob::Wire(rois, wirelist[ich]->Channel(), wirelist[ich]->View()));
+      outwires->emplace_back(rois, wirelist[ich]->Channel(), wirelist[ich]->View());
     }
     else if (!rawlist.empty() && hasROI) {
       outwires->emplace_back(
-        recob::Wire(rois, rawlist[ich]->Channel(), geo->View(rawlist[ich]->Channel())));
+        rois, rawlist[ich]->Channel(), wireReadoutGeom.View(rawlist[ich]->Channel()));
     }
   }
 

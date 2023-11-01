@@ -30,7 +30,6 @@ namespace lcvn {
 
   Waveform HitHelper::GetWaveform()
   {
-
     Waveform ret;
     double pe = fHit.Integral();
     if (pe > fThreshold) ret.push_back(std::map<double, double>({{fHit.PeakTime(), pe}}));
@@ -42,7 +41,6 @@ namespace lcvn {
 
   Waveform WireHelper::GetWaveform()
   {
-
     Waveform ret;
     auto ROIs = fWire.SignalROI();
     if (!(ROIs.get_ranges().size())) return ret;
@@ -62,7 +60,7 @@ namespace lcvn {
   geo::WireID WireHelper::GetID()
   {
     geo::WireID ret;
-    std::vector<geo::WireID> wireids = fGeometry->ChannelToWire(fWire.Channel());
+    std::vector<geo::WireID> wireids = fWireReadoutGeom->ChannelToWire(fWire.Channel());
     if (!wireids.size()) return ret;
     ret = wireids[0];
 
@@ -75,7 +73,6 @@ namespace lcvn {
 
   Waveform SimChannelHelper::GetWaveform()
   {
-
     Waveform ret;
     auto& ROIs = fSimchan.TDCIDEMap();
     if (!(ROIs.size())) return ret;
@@ -93,11 +90,9 @@ namespace lcvn {
 
   geo::WireID SimChannelHelper::GetID()
   {
-    geo::WireID ret;
-    std::vector<geo::WireID> wireids = fGeometry->ChannelToWire(fSimchan.Channel());
-    if (!wireids.size()) return ret;
-    ret = wireids[0];
-    return ret;
+    std::vector<geo::WireID> wireids = fWireReadoutGeom->ChannelToWire(fSimchan.Channel());
+    if (wireids.empty()) return {};
+    return wireids[0];
   }
 
   template <class T, class U>
@@ -106,16 +101,7 @@ namespace lcvn {
                                            double tRes,
                                            double threshold)
     : fNWire(nWire), fNTdc(nTdc), fTRes(tRes), fThreshold(threshold), fMultipleDrifts(false)
-  {
-
-    fGeometry = &*(art::ServiceHandle<geo::Geometry>());
-  }
-
-  template <class T, class U>
-  PixelMapProducer<T, U>::PixelMapProducer()
-  {
-    fGeometry = &*(art::ServiceHandle<geo::Geometry>());
-  }
+  {}
 
   template <class T, class U>
   PixelMapProducer<T, U>::PixelMapProducer(const fhicl::ParameterSet& pset)
@@ -124,9 +110,7 @@ namespace lcvn {
     , fTRes(pset.get<double>("TimeResolution"))
     , fThreshold(pset.get<double>("Threshold"))
     , fMultipleDrifts(pset.get<bool>("MultipleDrifts"))
-  {
-    fGeometry = &*(art::ServiceHandle<geo::Geometry>());
-  }
+  {}
 
   template <class T, class U>
   PixelMap PixelMapProducer<T, U>::CreateMap(detinfo::DetectorPropertiesData const& detProp,
@@ -153,7 +137,6 @@ namespace lcvn {
     const std::vector<const T*>& cluster,
     const Boundary& bound)
   {
-
     PixelMap pm(fNWire, fNTdc, bound);
 
     for (size_t iHit = 0; iHit < cluster.size(); ++iHit) {
@@ -198,7 +181,6 @@ namespace lcvn {
   Boundary PixelMapProducer<T, U>::DefineBoundary(detinfo::DetectorPropertiesData const& detProp,
                                                   const std::vector<const T*>& cluster)
   {
-
     std::vector<double> tmin_0;
     std::vector<double> tmin_1;
     std::vector<double> tmin_2;
@@ -290,9 +272,7 @@ namespace lcvn {
 
     fTotHits = bwire_0.size() + bwire_1.size() + bwire_2.size();
 
-    Boundary bound(fNWire, fTRes, minwire_0, minwire_1, minwire_2, tmean_0, tmean_1, tmean_2);
-
-    return bound;
+    return Boundary(fNWire, fTRes, minwire_0, minwire_1, minwire_2, tmean_0, tmean_1, tmean_2);
   }
 
   template <class T, class U>

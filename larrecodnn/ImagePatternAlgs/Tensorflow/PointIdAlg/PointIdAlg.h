@@ -27,13 +27,9 @@ namespace detinfo {
 #include "nusimdata/SimulationBase/MCParticle.h"
 
 // Framework includes
-namespace art {
-  class Event;
-}
-namespace fhicl {
-  class ParameterSet;
-}
+#include "art/Framework/Principal/fwd.h"
 #include "canvas/Utilities/InputTag.h"
+#include "fhiclcpp/fwd.h"
 #include "fhiclcpp/types/Atom.h"
 #include "fhiclcpp/types/Comment.h"
 #include "fhiclcpp/types/Name.h"
