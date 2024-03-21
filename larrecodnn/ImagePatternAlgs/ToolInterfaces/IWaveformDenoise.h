@@ -176,7 +176,6 @@ namespace wavdenoise_tool {
   private:
     float fCnnMean;
     float fCnnScale;
-    float fCnnPredCut;
     unsigned int fWindowSize;   // Scan window size
     unsigned int fStrideLength; // Offset (in #time ticks) between scan windows
     unsigned int fLastWindowOpt;
