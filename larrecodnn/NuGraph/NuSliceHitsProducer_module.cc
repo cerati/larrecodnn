@@ -62,7 +62,7 @@ NuSliceHitsProducer::NuSliceHitsProducer(fhicl::ParameterSet const& p)
   , fPfpLabel(p.get<std::string>("PfpLabel", "pandora"))
   , fSliceLabel(p.get<std::string>("SliceLabel", "pandora"))
   , fHitLabel(p.get<std::string>("HitLabel", "gaushit"))
-  , fHitTruthLabel(p.get<std::string>("HitTruthLabel", "gaushitTruthMatch"))
+  , fHitTruthLabel(p.get<std::string>("HitTruthLabel", ""))
 // More initializers here.
 {
   // Call appropriate produces<>() functions here.
@@ -92,8 +92,9 @@ void NuSliceHitsProducer::produce(art::Event& e)
 
   art::Handle<std::vector<recob::Hit>> hitListHandle;
   e.getByLabel(fHitLabel, hitListHandle);
-  std::unique_ptr<art::FindManyP<simb::MCParticle, anab::BackTrackerHitMatchingData>> hittruth =
-    std::unique_ptr<art::FindManyP<simb::MCParticle, anab::BackTrackerHitMatchingData>>(
+  std::unique_ptr<art::FindManyP<simb::MCParticle, anab::BackTrackerHitMatchingData>> hittruth;
+  if (fHitTruthLabel != "")
+    hittruth = std::unique_ptr<art::FindManyP<simb::MCParticle, anab::BackTrackerHitMatchingData>>(
       new art::FindManyP<simb::MCParticle, anab::BackTrackerHitMatchingData>(
         hitListHandle, e, fHitTruthLabel));
 
@@ -111,6 +112,7 @@ void NuSliceHitsProducer::produce(art::Event& e)
       auto hit = sliceHits.at(ihit);
       outputHits->emplace_back(*hit);
 
+      if (fHitTruthLabel == "") continue;
       std::vector<art::Ptr<simb::MCParticle>> particle_vec = hittruth->at(hit.key());
       std::vector<anab::BackTrackerHitMatchingData const*> match_vec = hittruth->data(hit.key());
       const art::Ptr<recob::Hit> ahp = hitPtrMaker(outputHits->size() - 1);
