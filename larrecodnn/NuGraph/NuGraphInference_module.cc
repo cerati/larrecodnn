@@ -396,7 +396,7 @@ void NuGraphInference::produce(art::Event& e)
     }
   }
   if (vertexDecoder) {
-    torch::Tensor v = outputs.at("x_vertex").toGenericDict().at(0).toTensor();
+    torch::Tensor v = outputs.at("x_vtx").toGenericDict().at("evt").toTensor()[0];
     double vpos[3];
     vpos[0] = v[0].item<float>();
     vpos[1] = v[1].item<float>();
