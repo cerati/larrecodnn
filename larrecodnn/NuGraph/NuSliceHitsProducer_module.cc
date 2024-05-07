@@ -62,12 +62,12 @@ NuSliceHitsProducer::NuSliceHitsProducer(fhicl::ParameterSet const& p)
   , fPfpLabel(p.get<std::string>("PfpLabel", "pandora"))
   , fSliceLabel(p.get<std::string>("SliceLabel", "pandora"))
   , fHitLabel(p.get<std::string>("HitLabel", "gaushit"))
-  , fHitTruthLabel(p.get<std::string>("HitTruthLabel", "gaushitTruthMatch"))
+  , fHitTruthLabel(p.get<std::string>("HitTruthLabel", ""))
 // More initializers here.
 {
   // Call appropriate produces<>() functions here.
   produces<std::vector<recob::Hit>>();
-  produces<HitParticleAssociations>();
+  if (!fHitTruthLabel.empty()) produces<HitParticleAssociations>();
 
   // Call appropriate consumes<>() for any products to be retrieved by this module.
 }
@@ -92,10 +92,11 @@ void NuSliceHitsProducer::produce(art::Event& e)
 
   art::Handle<std::vector<recob::Hit>> hitListHandle;
   e.getByLabel(fHitLabel, hitListHandle);
-  std::unique_ptr<art::FindManyP<simb::MCParticle, anab::BackTrackerHitMatchingData>> hittruth =
-    std::unique_ptr<art::FindManyP<simb::MCParticle, anab::BackTrackerHitMatchingData>>(
-      new art::FindManyP<simb::MCParticle, anab::BackTrackerHitMatchingData>(
-        hitListHandle, e, fHitTruthLabel));
+  std::unique_ptr<art::FindManyP<simb::MCParticle, anab::BackTrackerHitMatchingData>> hittruth;
+  if (!fHitTruthLabel.empty()) {
+    hittruth = std::make_unique<art::FindManyP<simb::MCParticle, anab::BackTrackerHitMatchingData>>(
+      hitListHandle, e, fHitTruthLabel);
+  }
 
   for (size_t ipfp = 0; ipfp < inputPfp->size(); ipfp++) {
 
@@ -111,6 +112,7 @@ void NuSliceHitsProducer::produce(art::Event& e)
       auto hit = sliceHits.at(ihit);
       outputHits->emplace_back(*hit);
 
+      if (!hittruth) continue;
       std::vector<art::Ptr<simb::MCParticle>> particle_vec = hittruth->at(hit.key());
       std::vector<anab::BackTrackerHitMatchingData const*> match_vec = hittruth->data(hit.key());
       const art::Ptr<recob::Hit> ahp = hitPtrMaker(outputHits->size() - 1);
@@ -121,7 +123,7 @@ void NuSliceHitsProducer::produce(art::Event& e)
   }
 
   e.put(std::move(outputHits));
-  e.put(std::move(outputHitPartAssns));
+  if (!fHitTruthLabel.empty()) e.put(std::move(outputHitPartAssns));
 }
 
 DEFINE_ART_MODULE(NuSliceHitsProducer)

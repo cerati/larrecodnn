@@ -63,6 +63,8 @@ physics:
  end_paths:          [ streamROOT ]
 }
 
+#physics.producers.nuslhits.HitTruthLabel: "gaushitTruthMatch"
+
 physics.producers.sps.HitLabel: "nuslhits"
 physics.producers.sps.WireIntersectThreshold: 0.3
 physics.producers.sps.WireIntersectThresholdDriftDir: 0.3

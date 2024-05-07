@@ -24,6 +24,7 @@
 #include "lardata/RecoBaseProxy/ProxyBase.h"
 #include "lardataobj/AnalysisBase/MVAOutput.h"
 #include "lardataobj/RecoBase/Hit.h"
+#include "lardataobj/RecoBase/Vertex.h"
 
 class NuGraphAnalyzer;
 
@@ -46,9 +47,10 @@ public:
 
 private:
   // Declare member data here.
-  TTree* _tree;
-  int _run, _subrun, _event, _id;
-  float _x_filter, _MIP, _HIP, _shower, _michel, _diffuse;
+  TTree *_treeHit, *_treeEvt;
+  int _run, _subrun, _event, _id, _wire, _plane;
+  float _x_filter, _MIP, _HIP, _shower, _michel, _diffuse, _time;
+  float _vtx_x, _vtx_y, _vtx_z;
 };
 
 NuGraphAnalyzer::NuGraphAnalyzer(fhicl::ParameterSet const& p) : EDAnalyzer{p} // ,
@@ -56,24 +58,33 @@ NuGraphAnalyzer::NuGraphAnalyzer(fhicl::ParameterSet const& p) : EDAnalyzer{p} /
 {
   // Call appropriate consumes<>() for any products to be retrieved by this module.
   art::ServiceHandle<art::TFileService> tfs;
-  _tree = tfs->make<TTree>("NuGraphOutput", "NuGraphOutput");
-  _tree->Branch("run", &_run, "run/I");
-  _tree->Branch("subrun", &_subrun, "subrun/I");
-  _tree->Branch("event", &_event, "event/I");
-  _tree->Branch("id", &_id, "id/I");
-  _tree->Branch("x_filter", &_x_filter, "x_filter/F");
-  _tree->Branch("MIP", &_MIP, "MIP/F");
-  _tree->Branch("HIP", &_HIP, "HIP/F");
-  _tree->Branch("shower", &_shower, "shower/F");
-  _tree->Branch("michel", &_michel, "michel/F");
-  _tree->Branch("diffuse", &_diffuse, "diffuse/F");
+  _treeHit = tfs->make<TTree>("NuGraphHitOutput", "NuGraphHitOutput");
+  _treeHit->Branch("run", &_run, "run/I");
+  _treeHit->Branch("subrun", &_subrun, "subrun/I");
+  _treeHit->Branch("event", &_event, "event/I");
+  _treeHit->Branch("id", &_id, "id/I");
+  _treeHit->Branch("wire", &_wire, "wire/I");
+  _treeHit->Branch("plane", &_plane, "plane/I");
+  _treeHit->Branch("x_filter", &_x_filter, "x_filter/F");
+  _treeHit->Branch("MIP", &_MIP, "MIP/F");
+  _treeHit->Branch("HIP", &_HIP, "HIP/F");
+  _treeHit->Branch("shower", &_shower, "shower/F");
+  _treeHit->Branch("michel", &_michel, "michel/F");
+  _treeHit->Branch("diffuse", &_diffuse, "diffuse/F");
+  _treeHit->Branch("time", &_time, "time/F");
+  _treeEvt = tfs->make<TTree>("NuGraphEventOutput", "NuGraphEventOutput");
+  _treeEvt->Branch("run", &_run, "run/I");
+  _treeEvt->Branch("subrun", &_subrun, "subrun/I");
+  _treeEvt->Branch("event", &_event, "event/I");
+  _treeEvt->Branch("vtx_x", &_vtx_x, "vtx_x/F");
+  _treeEvt->Branch("vtx_y", &_vtx_y, "vtx_y/F");
+  _treeEvt->Branch("vtx_z", &_vtx_z, "vtx_z/F");
 }
 
 void NuGraphAnalyzer::analyze(art::Event const& e)
 {
 
-  art::Handle<anab::MVADescription<5>> GNNDescription;
-  e.getByLabel(art::InputTag("NuGraph", "semantic"), GNNDescription);
+  auto GNNDescription = e.getHandle<anab::MVADescription<5>>(art::InputTag("NuGraph", "semantic"));
 
   auto const& hitsWithScores = proxy::getCollection<std::vector<recob::Hit>>(
     e,
@@ -95,7 +106,15 @@ void NuGraphAnalyzer::analyze(art::Event const& e)
     _shower = assocSemantic.at(GNNDescription->getIndex("shower"));
     _michel = assocSemantic.at(GNNDescription->getIndex("michel"));
     _diffuse = assocSemantic.at(GNNDescription->getIndex("diffuse"));
-    _tree->Fill();
+    _treeHit->Fill();
+  }
+
+  auto PredVertexColl = e.getHandle<std::vector<recob::Vertex>>(art::InputTag("NuGraph", "vertex"));
+  if (PredVertexColl.isValid() && PredVertexColl->size() > 0) { //there should be only one
+    _vtx_x = PredVertexColl->at(0).position().X();
+    _vtx_y = PredVertexColl->at(0).position().Y();
+    _vtx_z = PredVertexColl->at(0).position().Z();
+    _treeEvt->Fill();
   }
 }
 
