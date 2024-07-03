@@ -63,6 +63,29 @@ cet_build_plugin(NuGraphAnalyzer art::EDAnalyzer
     lardata::RecoBaseProxy
 )
 
+
+cet_build_plugin(NuGraphInferenceSonicTriton art::EDProducer
+    LIBRARIES PRIVATE
+    ${ART_FRAMEWORK_PRINCIPAL}
+    ${ART_FRAMEWORK_SERVICES_REGISTRY}
+    ${ART_FRAMEWORK_SERVICES_BASIC}
+    ${ART_FRAMEWORK_SERVICES_OPTIONAL}
+    ${ART_PERSISTENCY_PROVENANCE}
+    ${ART_ROOT_IO_TFILE_SUPPORT}
+    ${ROOT_CORE}
+    ${ROOT_MATH}
+    ${ART_ROOT_IO_TFILESERVICE_SERVICE}
+    ${ART_PERSISTENCY_COMMON}
+    ${ART_UTILITIES}
+    ${MF_MESSAGELOGGER}
+    ${FHICLCPP}
+    ${ROOT_BASIC_LIB_LIST}
+    lardataobj::RecoBase
+    ${TORCH_LIBRARIES}
+    TorchScatter::TorchScatter
+    IMPL_TARGET_VAR NuGraphInferenceSonicTriton_module
+)
+
 install_headers()
 install_fhicl()
 install_source()

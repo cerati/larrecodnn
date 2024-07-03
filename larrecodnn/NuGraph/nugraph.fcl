@@ -19,4 +19,16 @@ NuGraph: {
    module_type: "NuGraphInference"
 }
 
+NuGraphTriton: { 
+   planes: ["u","v","y"]
+   hitInput: "nuslhits"
+   spsInput: "sps"
+   minHits: 10
+   debug: false
+   filterDecoder:   true
+   semanticDecoder: true
+   vertexDecoder:   false
+   module_type: "NuGraphInferenceSonicTriton"
+}
+
 END_PROLOG
