@@ -494,7 +494,7 @@ void nnet::PointIdEffTest::countPfpDep(detinfo::DetectorClocksData const& clockD
       for (const auto& h : hits) {
         if (h->View() == fView) {
           hitdep +=
-            h->SummedADC() * fCalorimetryAlg.LifetimeCorrection(clockData, detProp, h->PeakTime());
+            h->ROISummedADC() * fCalorimetryAlg.LifetimeCorrection(clockData, detProp, h->PeakTime());
         }
       }
     }
@@ -618,7 +618,7 @@ int nnet::PointIdEffTest::testCNN(detinfo::DetectorClocksData const& clockData,
     totEnTrk += hitEnTrk;
 
     double hitAdc =
-      hit->SummedADC() * fCalorimetryAlg.LifetimeCorrection(clockData, detProp, hit->PeakTime());
+      hit->ROISummedADC() * fCalorimetryAlg.LifetimeCorrection(clockData, detProp, hit->PeakTime());
     fTotHit += hitAdc;
 
     int hitPidMc_0p5 = -1;
@@ -748,7 +748,7 @@ int nnet::PointIdEffTest::testCNN(detinfo::DetectorClocksData const& clockData,
 
       fHitsOutFile << fRun << " " << fEvent << " " << h->WireID().TPC << " " << h->WireID().Wire
                    << " " << h->PeakTime() << " "
-                   << h->SummedADC() *
+                   << h->ROISummedADC() *
                         fCalorimetryAlg.LifetimeCorrection(clockData, detProp, h->PeakTime())
                    << " " << mcHitPid[h.key()] << " " << fPidValue << " " << hitPidValue;
 
