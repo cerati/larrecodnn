@@ -493,8 +493,8 @@ void nnet::PointIdEffTest::countPfpDep(detinfo::DetectorClocksData const& clockD
       const auto& hits = cluhits.at(c.key());
       for (const auto& h : hits) {
         if (h->View() == fView) {
-          hitdep +=
-            h->ROISummedADC() * fCalorimetryAlg.LifetimeCorrection(clockData, detProp, h->PeakTime());
+          hitdep += h->ROISummedADC() *
+                    fCalorimetryAlg.LifetimeCorrection(clockData, detProp, h->PeakTime());
         }
       }
     }
