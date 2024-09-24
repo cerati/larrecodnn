@@ -16,7 +16,7 @@
 #include "messagefacility/MessageLogger/MessageLogger.h"
 
 // LArSoft libraries
-#include "larcore/Geometry/Geometry.h"
+#include "larcore/Geometry/WireReadout.h"
 #include "larcorealg/Geometry/PlaneGeo.h"
 #include "larcoreobj/SimpleTypesAndConstants/RawTypes.h" // raw::ChannelID_t
 #include "lardata/DetectorInfoServices/DetectorClocksService.h"
@@ -75,7 +75,7 @@ private:
 
   std::string fPlaneToDump;
   std::string fCollectionPlaneLabel;
-  art::ServiceHandle<geo::Geometry> fgeom;
+  geo::WireReadoutGeom const& fWireReadout = art::ServiceHandle<geo::WireReadout>()->Get();
 
   std::vector<std::unique_ptr<wavrec_tool::IWaveformRecog>> fWaveformRecogToolVec;
   std::vector<std::unique_ptr<wavdenoise_tool::IWaveformDenoise>> fWaveformDenoiseToolVec;
@@ -108,7 +108,7 @@ nnet::WaveformDenoiseTest::WaveformDenoiseTest(fhicl::ParameterSet const& p)
       << "Both DigitModuleLabel and CleanSignalModuleLabel are empty";
   }
 
-  fNPlanes = fgeom->Nplanes();
+  fNPlanes = fWireReadout.Nplanes();
 
   // Signal/Noise waveform recognition tool
   fWaveformRecogToolVec.reserve(fNPlanes);
@@ -212,7 +212,7 @@ void nnet::WaveformDenoiseTest::analyze(art::Event const& evt)
     art::Ptr<raw::RawDigit> digitVec(digitVecHandle, rdIter);
     chnum = digitVec->Channel();
     if (chnum == raw::InvalidChannelID) continue;
-    if (geo::PlaneGeo::ViewName(fgeom->View(chnum)) != fPlaneToDump[0]) continue;
+    if (geo::PlaneGeo::ViewName(fWireReadout.View(chnum)) != fPlaneToDump[0]) continue;
     rawdigitMap[chnum] = digitVec;
   }
   std::map<raw::ChannelID_t, art::Ptr<raw::RawDigit>> rawdigitMap2;
@@ -221,7 +221,7 @@ void nnet::WaveformDenoiseTest::analyze(art::Event const& evt)
     art::Ptr<raw::RawDigit> digitVec2(digitVecHandle2, rdIter);
     chnum2 = digitVec2->Channel();
     if (chnum2 == raw::InvalidChannelID) continue;
-    if (geo::PlaneGeo::ViewName(fgeom->View(chnum2)) != fPlaneToDump[0]) continue;
+    if (geo::PlaneGeo::ViewName(fWireReadout.View(chnum2)) != fPlaneToDump[0]) continue;
     rawdigitMap2[chnum2] = digitVec2;
   }
 
@@ -253,7 +253,7 @@ void nnet::WaveformDenoiseTest::analyze(art::Event const& evt)
     // .. get signal-containing channel number
     auto ch1 = signalchannels[ich];
     if (ch1 == raw::InvalidChannelID) continue;
-    if (geo::PlaneGeo::ViewName(fgeom->View(ch1)) != fPlaneToDump[0]) continue;
+    if (geo::PlaneGeo::ViewName(fWireReadout.View(ch1)) != fPlaneToDump[0]) continue;
 
     std::vector<short> rawadc(dataSize);  // vector to hold uncompressed adc values later
     std::vector<short> adcvec(dataSize);  // vector to hold zero-padded full waveform
@@ -279,7 +279,7 @@ void nnet::WaveformDenoiseTest::analyze(art::Event const& evt)
 
     // ... use waveform recognition CNN to perform inference on each window
     std::vector<bool> inroi(dataSize, false);
-    inroi = fWaveformRecogToolVec[fgeom->View(ch1)]->findROI(inputsignal);
+    inroi = fWaveformRecogToolVec[fWireReadout.View(ch1)]->findROI(inputsignal);
 
     auto itnf = find_if(inroi.begin(), inroi.end(), [](auto x) { return x; });
     if (itnf == inroi.end()) continue;
@@ -329,7 +329,7 @@ void nnet::WaveformDenoiseTest::analyze(art::Event const& evt)
         wavinp[jtck] = float(adcvec[itck]);
         jtck++;
       }
-      wavout = fWaveformDenoiseToolVec[fgeom->View(ch1)]->denoiseWaveform(wavinp);
+      wavout = fWaveformDenoiseToolVec[fWireReadout.View(ch1)]->denoiseWaveform(wavinp);
 
       for (unsigned int itck = 0; itck < ntcks_dis; ++itck) {
         wavdns[itck] = wavout[itck];
@@ -338,7 +338,7 @@ void nnet::WaveformDenoiseTest::analyze(art::Event const& evt)
       c2numpy_uint32(&npywriter, evt.id().event());
       c2numpy_uint32(&npywriter, ch1);
       c2numpy_uint16(&npywriter, i); // roi
-      c2numpy_string(&npywriter, geo::PlaneGeo::ViewName(fgeom->View(ch1)).c_str());
+      c2numpy_string(&npywriter, geo::PlaneGeo::ViewName(fWireReadout.View(ch1)).c_str());
 
       for (unsigned int j = 0; j < fDisplayWindowSize; ++j) {
         c2numpy_int16(&npywriter, wavraw[j]);

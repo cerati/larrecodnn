@@ -313,7 +313,7 @@ end_product_list
 ####################################
 qualifier	larreco		tensorflow	triton	larfinder  libtorch  torch_scatter delaunator  hep_hpc
 c14:debug	c14:debug	c14:p3915	c14     -nq-       c14       c14              -nq-     c14:debug
-c14:prof 	c14:prof	c14:p3915	c14     -nq-       c14       c14              -nq-     c14:prof
+c14:prof        c14:prof	c14:p3915	c14     -nq-       c14       c14              -nq-     c14:prof
 e26:debug	e26:debug	e26:p3915	e26     -nq-       e26       e26              -nq-     e26:debug
 e26:prof	e26:prof	e26:p3915	e26     -nq-       e26       e26              -nq-     e26:prof
 end_qualifier_list

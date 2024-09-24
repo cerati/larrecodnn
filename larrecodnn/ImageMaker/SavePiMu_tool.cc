@@ -5,7 +5,7 @@
 #include "art/Utilities/ToolMacros.h"
 #include "canvas/Persistency/Common/FindManyP.h"
 
-#include "larcore/Geometry/Geometry.h"
+#include "larcore/Geometry/WireReadout.h"
 #include "lardataobj/RecoBase/Hit.h"
 #include "lardataobj/RecoBase/Track.h"
 #include "lardataobj/RecoBase/TrackHitMeta.h"
@@ -41,8 +41,7 @@ namespace dnn {
 
   void SavePiMu::saveImage(art::Event const& e, hep_hpc::hdf5::File& hdffile)
   {
-
-    art::ServiceHandle<geo::Geometry> geom;
+    auto const& wireReadoutGeom = art::ServiceHandle<geo::WireReadout>()->Get();
 
     static Ntuple<unsigned int, unsigned int, unsigned int, double> evtids(
       hdffile, "evtids", {"run", "subrun", "event", "evttime"});
@@ -114,7 +113,7 @@ namespace dnn {
             float adc[50][50] = {{0.}};
             for (auto& wire : wires) {
               int channel = wire.Channel();
-              auto wireids = geom->ChannelToWire(channel);
+              auto wireids = wireReadoutGeom.ChannelToWire(channel);
               if (wireids[0].Plane == 2 && wireids[0].TPC == endwire.TPC &&
                   wireids[0].Wire >= endwire.Wire - 25 && wireids[0].Wire < endwire.Wire + 25) {
                 int idx = wireids[0].Wire - endwire.Wire + 25;

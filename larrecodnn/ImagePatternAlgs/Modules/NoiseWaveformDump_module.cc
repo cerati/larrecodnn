@@ -23,7 +23,7 @@
 #include "messagefacility/MessageLogger/MessageLogger.h"
 
 // LArSoft libraries
-#include "larcore/Geometry/Geometry.h"
+#include "larcore/Geometry/WireReadout.h"
 #include "larcorealg/Geometry/PlaneGeo.h"
 #include "larcoreobj/SimpleTypesAndConstants/RawTypes.h" // raw::ChannelID_t
 #include "lardata/DetectorInfoServices/DetectorClocksService.h"
@@ -75,7 +75,7 @@ private:
 
   std::string fPlaneToDump;
   int fMaxNoiseChannelsPerEvent;
-  art::ServiceHandle<geo::Geometry> fgeom;
+  geo::WireReadoutGeom const& fChannelMap = art::ServiceHandle<geo::WireReadout>()->Get();
 
   CLHEP::RandFlat fRandFlat;
 
@@ -205,7 +205,7 @@ void nnet::NoiseWaveformDump::analyze(art::Event const& evt)
   for (size_t rdIter = 0; rdIter < rawDigits.size(); ++rdIter) {
     chnum = rawDigits[rdIter].Channel();
     if (chnum == raw::InvalidChannelID) continue;
-    if (geo::PlaneGeo::ViewName(fgeom->View(chnum)) != fPlaneToDump[0]) continue;
+    if (geo::PlaneGeo::ViewName(fChannelMap.View(chnum)) != fPlaneToDump[0]) continue;
     rawdigitMap[chnum] = &rawDigits[rdIter];
   }
 
@@ -222,7 +222,7 @@ void nnet::NoiseWaveformDump::analyze(art::Event const& evt)
       // .. get simChannel channel number
       const raw::ChannelID_t ch1 = channel.Channel();
       if (ch1 == raw::InvalidChannelID) continue;
-      if (geo::PlaneGeo::ViewName(fgeom->View(ch1)) != fPlaneToDump[0]) continue;
+      if (geo::PlaneGeo::ViewName(fChannelMap.View(ch1)) != fPlaneToDump[0]) continue;
 
       bool hasEnergyDeposit = false;
 
@@ -286,7 +286,8 @@ void nnet::NoiseWaveformDump::analyze(art::Event const& evt)
     }
     c2numpy_uint32(&npywriter, evt.id().event());
     c2numpy_uint32(&npywriter, digitVec->Channel());
-    c2numpy_string(&npywriter, geo::PlaneGeo::ViewName(fgeom->View(digitVec->Channel())).c_str());
+    c2numpy_string(&npywriter,
+                   geo::PlaneGeo::ViewName(fChannelMap.View(digitVec->Channel())).c_str());
 
     c2numpy_uint16(&npywriter, 0); //number of peaks
     for (unsigned int i = 0; i < 5; ++i) {
