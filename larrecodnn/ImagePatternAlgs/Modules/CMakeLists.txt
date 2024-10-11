@@ -88,6 +88,7 @@ cet_build_plugin(PointIdEffTest art::EDAnalyzer
   cetlib_except::cetlib_except
   ROOT::Hist
   ROOT::Tree
+  PostgreSQL::PostgreSQL
 )
 
 cet_build_plugin(RawWaveformClnSigDump art::EDAnalyzer
