@@ -55,6 +55,7 @@ private:
   std::string fSliceLabel;
   std::string fHitLabel;
   std::string fHitTruthLabel;
+  bool fRecoverHighestNuScoreSlice;
 };
 
 NuSliceHitsProducer::NuSliceHitsProducer(fhicl::ParameterSet const& p)
@@ -63,6 +64,7 @@ NuSliceHitsProducer::NuSliceHitsProducer(fhicl::ParameterSet const& p)
   , fSliceLabel(p.get<std::string>("SliceLabel", "pandora"))
   , fHitLabel(p.get<std::string>("HitLabel", "gaushit"))
   , fHitTruthLabel(p.get<std::string>("HitTruthLabel", ""))
+  , fRecoverHighestNuScoreSlice(p.get<bool>("RecoverHighestNuScoreSlice"))
 // More initializers here.
 {
   // Call appropriate produces<>() functions here.
@@ -84,6 +86,7 @@ void NuSliceHitsProducer::produce(art::Event& e)
     e.getValidHandle<std::vector<recob::PFParticle>>(fPfpLabel);
   auto assocPfpSlice = std::unique_ptr<art::FindManyP<recob::Slice>>(
     new art::FindManyP<recob::Slice>(inputPfp, e, fPfpLabel));
+  auto assocPfpMetadata = e.getValidHandle<std::vector<larpandoraobj::PFParticleMetadata>>(fPfpLabel);
 
   art::ValidHandle<std::vector<recob::Slice>> inputSlice =
     e.getValidHandle<std::vector<recob::Slice>>(fSliceLabel);
@@ -98,12 +101,41 @@ void NuSliceHitsProducer::produce(art::Event& e)
       hitListHandle, e, fHitTruthLabel);
   }
 
+  //select the neutrino slice, or the one with largest NuScore if there is no neutino slice
+  size_t primaryIdx = inputPfp->size();
+  float maxNuScore = std::numeric_limits<float>::lowest();
+  bool foundNuSlice = false;
   for (size_t ipfp = 0; ipfp < inputPfp->size(); ipfp++) {
-
     art::Ptr<recob::PFParticle> pfp(inputPfp, ipfp);
     if (pfp->IsPrimary() == false) continue;
     auto PDG = fabs(pfp->PdgCode());
-    if (PDG != 12 && PDG != 14) continue;
+    if (PDG == 12 || PDG == 14) {
+      primaryIdx = ipfp;
+      foundNuSlice = true;
+      break;
+    }
+    //
+    if (fRecoverHighestNuScoreSlice==false) continue;
+    //
+    auto pfParticleMetadata = assocPfpMetadata->at(ipfp);
+    auto pfParticlePropertiesMap = pfParticleMetadata.GetPropertiesMap();
+    if (!pfParticlePropertiesMap.empty()) {
+      auto it = pfParticlePropertiesMap.begin();
+      while (it != pfParticlePropertiesMap.end()) {
+	if (it->first == "NuScore") {
+	  if (pfParticlePropertiesMap.at(it->first)>maxNuScore) {
+	    primaryIdx = ipfp;
+	    maxNuScore = pfParticlePropertiesMap.at(it->first);
+	  }
+	}
+	it++;
+      }
+    } // if PFP metadata exists!
+  }
+
+  //now save the hits for this slice
+  if (primaryIdx < inputPfp->size()) {
+    art::Ptr<recob::PFParticle> pfp(inputPfp, primaryIdx);
 
     auto assocSlice = assocPfpSlice->at(pfp.key());
     auto sliceHits = assocSliceHit->at(assocSlice[0].key());
@@ -122,6 +154,7 @@ void NuSliceHitsProducer::produce(art::Event& e)
     }
   }
 
+  std::cout << "NuSliceHitProducer nhits=" << outputHits->size() << " assns=" << outputHitPartAssns->size() << " foundNuSlice=" << foundNuSlice << std::endl;
   e.put(std::move(outputHits));
   if (!fHitTruthLabel.empty()) e.put(std::move(outputHitPartAssns));
 }
