@@ -207,6 +207,7 @@ void NuSliceHitsProducer::produce(art::Event& e)
       for (unsigned int q=0; q < pfp_ptr_v.size(); q++) {
 
 	// only pfps within 1m of the neutrino vertex
+        if (assocPfpVertex->at(pfp_ptr_v[q].key()).size()==0) continue;
 	auto pfvtx = assocPfpVertex->at(pfp_ptr_v[q].key()).at(0)->position();
 	std::cout << "pfp vtx dist=" << std::sqrt( (nuvtx-pfvtx).Mag2() ) << std::endl;
 	if ( (nuvtx-pfvtx).Mag2() > fVtxDistCut*fVtxDistCut ) continue;
