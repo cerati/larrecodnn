@@ -89,6 +89,7 @@ private:
   vector<vector<float>> avgs;
   vector<vector<float>> devs;
   vector<float> pos_norm;
+  bool doFeatExt;
   torch::jit::script::Module model;
   // loader tool
   std::unique_ptr<LoaderToolBase> _loaderTool;
@@ -102,6 +103,7 @@ NuGraphInference::NuGraphInference(fhicl::ParameterSet const& p)
   , minHits(p.get<size_t>("minHits"))
   , debug(p.get<bool>("debug"))
   , pos_norm(p.get<vector<float>>("pos_norm"))
+  , doFeatExt(p.get<bool>("doFeatExt",false))
 {
 
   for (size_t ip = 0; ip < planes.size(); ++ip) {
@@ -200,6 +202,10 @@ void NuGraphInference::produce(art::Event& e)
     };
   };
 
+  vector<float> hit_ddw(hitlist.size(),0);
+  vector<float> hit_ddt(hitlist.size(),0);
+  vector<float> hit_ndg(hitlist.size(),0);
+
   // Delauney graph construction
   auto start_preprocess1 = std::chrono::high_resolution_clock::now();
   vector<vector<Edge>> edge2d(planes.size(), vector<Edge>());
@@ -249,6 +255,68 @@ void NuGraphInference::produce(art::Event& e)
       }
     }
     edge2d[p].erase(std::unique(edge2d[p].begin(), edge2d[p].end()), edge2d[p].end());
+
+    if (!doFeatExt) continue;
+    // Feature extension
+
+    // Extracting wire and time information
+    size_t n_nodes = coords.size()/2;
+    std::vector<std::vector<float>> wt_coords(n_nodes, std::vector<float>(2));
+    for (size_t i = 0; i < coords.size(); i+=2) {
+      wt_coords[i][0] = coords[i]; // wire
+      wt_coords[i][1] = coords[i+1]; // time
+    }
+
+    // Calculating pairwise euclidean distances of nodes in the wire vs time space
+    std::vector<std::vector<float>> dist_table(n_nodes, std::vector<float>(n_nodes, std::numeric_limits<float>::infinity()));
+    for (size_t i = 0; i < n_nodes; ++i) {
+      for (size_t j = 0; j < n_nodes; ++j) {
+	if (i != j) {
+	  float dist = std::sqrt(std::pow(wt_coords[i][0] - wt_coords[j][0], 2) + 
+				 std::pow(wt_coords[i][1] - wt_coords[j][1], 2));
+	  dist_table[i][j] = dist;
+	}
+      }
+      dist_table[i][i] = std::numeric_limits<float>::infinity(); // fill diagonal with inf
+    }
+
+    // Find a (n_nodes, 2) matrix containing the distances and indexes of the two closest nodes to each node
+    std::vector<std::pair<float, int>> dists_2closest_nodes(n_nodes);
+    std::vector<std::vector<int>> idxs_2closest_nodes(n_nodes, std::vector<int>(2));
+    for (size_t i = 0; i < n_nodes; ++i) {
+      std::vector<std::pair<float, int>> distances;
+      for (size_t j = 0; j < n_nodes; ++j) {
+	distances.emplace_back(dist_table[i][j], j);
+      }
+      std::sort(distances.begin(), distances.end());
+      dists_2closest_nodes[i] = distances[0];
+      idxs_2closest_nodes[i][0] = distances[0].second;
+      idxs_2closest_nodes[i][1] = distances[1].second;
+    }
+
+    // Finding the wire and time differences of the two closest neighbors
+    std::vector<float> dwire(n_nodes,0);
+    std::vector<float> dtime(n_nodes,0);
+    for (size_t i = 0; i < n_nodes; ++i) {
+      dwire[i] = 2 * wt_coords[i][0] - wt_coords[idxs_2closest_nodes[i][1]][0] - wt_coords[idxs_2closest_nodes[i][0]][0];
+      dtime[i] = 2 * wt_coords[i][1] - wt_coords[idxs_2closest_nodes[i][1]][1] - wt_coords[idxs_2closest_nodes[i][0]][1];
+    }
+
+    // Adding node degree
+    std::vector<int> nodes_degree(n_nodes, 0);
+    for (const auto& edge : edge2d[p]) {
+      nodes_degree[edge.n1]++;
+    }
+    for (size_t i = 0; i < nodes_degree.size(); ++i) {
+      nodes_degree[i] = std::log(nodes_degree[i]);
+    }
+
+    for (size_t i = 0; i < n_nodes; ++i) {
+      hit_ddw[idsmap[p][i]] = dwire[i];
+      hit_ddt[idsmap[p][i]] = dtime[i];
+      hit_ndg[idsmap[p][i]] = nodes_degree[i];
+    }
+
   }
 
   if (debug) {
@@ -288,6 +356,7 @@ void NuGraphInference::produce(art::Event& e)
   // Prepare inputs
   auto x = torch::Dict<std::string, torch::Tensor>();
   auto batch = torch::Dict<std::string, torch::Tensor>();
+  size_t nfeats = (!doFeatExt ? 4 : 7);
   for (size_t p = 0; p < planes.size(); p++) {
     vector<float> nodeft;
     for (size_t i = 0; i < hit_plane->size(); ++i) {
@@ -299,22 +368,26 @@ void NuGraphInference::produce(art::Event& e)
       nodeft.push_back((hit_integral->at(i) - avgs[hit_plane->at(i)][2]) /
                        devs[hit_plane->at(i)][2]);
       nodeft.push_back((hit_rms->at(i) - avgs[hit_plane->at(i)][3]) / devs[hit_plane->at(i)][3]);
+      if (!doFeatExt) continue;
+      nodeft.push_back(hit_ddw.at(i));
+      nodeft.push_back(hit_ddt.at(i));
+      nodeft.push_back(hit_ndg.at(i));
     }
-    long int dim = nodeft.size() / 4;
-    torch::Tensor ix = torch::zeros({dim, 4}, torch::dtype(torch::kFloat32));
+    long int dim = nodeft.size() / nfeats;
+    long int nfl = nfeats;
+    torch::Tensor ix = torch::zeros({dim, nfl}, torch::dtype(torch::kFloat32));
     if (debug) {
       std::cout << "plane=" << p << std::endl;
       std::cout << std::scientific;
-      for (size_t n = 0; n < nodeft.size(); n = n + 4) {
-        std::cout << nodeft[n] << " " << nodeft[n + 1] << " " << nodeft[n + 2] << " "
-                  << nodeft[n + 3] << " " << std::endl;
+      for (size_t n = 0; n < nodeft.size(); n = n + nfeats) {
+	for (size_t f = 0; f < nfeats; f++) std::cout << nodeft[n+f] << " ";
+        std::cout << std::endl;
       }
     }
-    for (size_t n = 0; n < nodeft.size(); n = n + 4) {
-      ix[n / 4][0] = nodeft[n];
-      ix[n / 4][1] = nodeft[n + 1];
-      ix[n / 4][2] = nodeft[n + 2];
-      ix[n / 4][3] = nodeft[n + 3];
+    for (size_t n = 0; n < nodeft.size(); n = n + nfeats) {
+      for (size_t f = 0; f < nfeats; f++) {
+	ix[n / nfeats][f] = nodeft[n+f];
+      }
     }
     x.insert(planes[p], ix);
     torch::Tensor ib = torch::zeros({dim}, torch::dtype(torch::kInt64));
